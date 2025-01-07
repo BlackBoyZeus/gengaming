@@ -1,0 +1,33 @@
+# Redis Service Manifest for GameGen-X
+# Version: v1
+# Purpose: Exposes Redis cache for frame buffering and session management
+# Performance: Sub-ms latency, 256GB memory capacity
+# Retention: 24 hour TTL for frames and sessions
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: gamegen-x
+  labels:
+    app: redis
+    component: cache
+  annotations:
+    service.beta.kubernetes.io/freebsd-compute-class: "memory-optimized"
+    service.beta.kubernetes.io/description: "Redis cache for GameGen-X frame buffering and sessions"
+spec:
+  # Headless service for StatefulSet DNS-based discovery
+  clusterIP: None
+  type: ClusterIP
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+      protocol: TCP
+  selector:
+    app: redis
+  # Ensure optimal pod selection for FreeBSD compatibility
+  publishNotReadyAddresses: false
+  sessionAffinity: None
+  # Optimize for low-latency cache access
+  internalTrafficPolicy: Cluster
