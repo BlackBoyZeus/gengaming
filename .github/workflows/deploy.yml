@@ -1,0 +1,161 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_run:
+    workflows:
+      - 'Backend CI'
+      - 'Web CI'
+    types:
+      - completed
+    branches:
+      - main
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+env:
+  DOCKER_REGISTRY: registry.example.com
+  DEPLOY_ENV: production
+  GPU_ENABLED: true
+  FREEBSD_HOST: freebsd.production.example.com
+  MONITORING_ENDPOINT: https://monitoring.example.com
+
+jobs:
+  deploy:
+    name: Deploy GameGen-X
+    runs-on: ubuntu-latest
+    environment: production
+    needs:
+      - backend-ci
+      - web-ci
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          platforms: linux/amd64,freebsd/amd64
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Validate FreeBSD Environment
+        run: |
+          ssh -i ${{ secrets.FREEBSD_SSH_KEY }} freebsd@${{ env.FREEBSD_HOST }} '
+            # Check FreeBSD version and patches
+            freebsd-version -ku
+            # Validate GPU availability
+            pciconf -lv | grep -i gpu
+            # Check Podman installation
+            podman version
+            # Verify system resources
+            sysctl hw.physmem hw.ncpu
+            # Test network configuration
+            netstat -rn
+          '
+
+      - name: Build and Push API Service
+        run: |
+          podman build \
+            --platform freebsd/amd64 \
+            --cache-from type=local,src=/tmp/.buildx-cache \
+            --cache-to type=local,dest=/tmp/.buildx-cache-new \
+            --tag ${{ env.DOCKER_REGISTRY }}/gamegen-x-api:${{ github.sha }} \
+            --file infrastructure/docker/Dockerfile.api .
+          podman push ${{ env.DOCKER_REGISTRY }}/gamegen-x-api:${{ github.sha }}
+
+      - name: Deploy Services
+        run: |
+          ssh -i ${{ secrets.FREEBSD_SSH_KEY }} freebsd@${{ env.FREEBSD_HOST }} '
+            # Pull latest images
+            podman pull ${{ env.DOCKER_REGISTRY }}/gamegen-x-api:${{ github.sha }}
+            
+            # Update service configurations
+            export API_IMAGE=${{ env.DOCKER_REGISTRY }}/gamegen-x-api:${{ github.sha }}
+            export GPU_ENABLED=${{ env.GPU_ENABLED }}
+            
+            # Deploy with Podman Compose
+            cd /opt/gamegen-x
+            podman-compose -f docker-compose.prod.yml up -d --force-recreate
+            
+            # Configure resource limits
+            podman update --cpus=4 --memory=8G gamegen-x-api
+            podman update --cpus=2 --memory=4G redis
+          '
+
+      - name: Setup Monitoring
+        run: |
+          curl -X POST ${{ env.MONITORING_ENDPOINT }}/api/v1/alerts \
+            -H "Authorization: Bearer ${{ secrets.MONITORING_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "name": "GameGen-X Production",
+              "targets": ["${{ env.FREEBSD_HOST }}:9090"],
+              "alerts": {
+                "latency": {"threshold": "100ms"},
+                "fps": {"min": "24"},
+                "memory_usage": {"max": "90%"},
+                "gpu_utilization": {"max": "95%"}
+              }
+            }'
+
+      - name: Validate Deployment
+        run: |
+          # Health check endpoints
+          curl -f https://${{ env.FREEBSD_HOST }}/health
+          
+          # Performance validation
+          for i in {1..10}; do
+            # Check API response time
+            time curl -s https://${{ env.FREEBSD_HOST }}/api/v1/status
+            
+            # Verify frame generation rate
+            fps=$(curl -s https://${{ env.FREEBSD_HOST }}/api/v1/metrics/fps)
+            if [ "$fps" -lt 24 ]; then
+              echo "Frame rate below target: $fps FPS"
+              exit 1
+            fi
+            
+            # Check latency
+            latency=$(curl -s https://${{ env.FREEBSD_HOST }}/api/v1/metrics/latency)
+            if [ "$latency" -gt 100 ]; then
+              echo "Latency above threshold: $latency ms"
+              exit 1
+            fi
+            
+            sleep 1
+          done
+
+      - name: Cleanup Cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      - name: Notify Deployment Status
+        if: always()
+        run: |
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "text": "GameGen-X Deployment Status: ${{ job.status }}\nEnvironment: Production\nCommit: ${{ github.sha }}\nTrigger: ${{ github.event_name }}"
+            }'
