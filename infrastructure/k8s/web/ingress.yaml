@@ -1,0 +1,60 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gamegen-x-web-ingress
+  namespace: gamegen-x
+  labels:
+    app: gamegen-x
+    component: web
+    environment: production
+  annotations:
+    # TLS Configuration
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-min-version: "TLSv1.3"
+    
+    # HSTS Configuration
+    nginx.ingress.kubernetes.io/hsts: "true"
+    nginx.ingress.kubernetes.io/hsts-max-age: "31536000"
+    nginx.ingress.kubernetes.io/hsts-include-subdomains: "true"
+    
+    # Timeout Settings
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "100"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "100"
+    
+    # Proxy Buffer Configuration
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "8k"
+    nginx.ingress.kubernetes.io/proxy-buffers-number: "4"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    
+    # WebSocket Support
+    nginx.ingress.kubernetes.io/websocket-services: "gamegen-x-web"
+    
+    # Security Headers
+    nginx.ingress.kubernetes.io/security-headers: "true"
+    
+    # CORS Support
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    
+    # Additional Headers Configuration
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - gamegen-x.example.com
+      secretName: gamegen-x-tls
+  rules:
+    - host: gamegen-x.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gamegen-x-web
+                port:
+                  number: 80
