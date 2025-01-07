@@ -1,0 +1,135 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+  labels:
+    app: gamegen-x
+    component: monitoring
+    service: prometheus
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      scrape_timeout: 10s
+
+    scrape_configs:
+      - job_name: 'backend-api'
+        metrics_path: '/metrics'
+        scheme: 'https'
+        tls_config:
+          insecure_skip_verify: false
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: ['default']
+            selectors:
+              - app: gamegen-x
+                component: backend
+        relabel_configs:
+          - source_labels: ['__meta_kubernetes_pod_ready']
+            action: keep
+            regex: true
+
+      - job_name: 'model-service'
+        metrics_path: '/metrics'
+        scheme: 'https'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: ['default']
+            selectors:
+              - app: gamegen-x
+                component: model
+
+      - job_name: 'cache-service'
+        metrics_path: '/metrics'
+        scheme: 'https'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: ['default']
+            selectors:
+              - app: gamegen-x
+                component: cache
+
+  rules/performance.yml: |
+    groups:
+      - name: performance_alerts
+        rules:
+          - alert: HighGenerationLatency
+            expr: generation_latency_ms > 100
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: High video generation latency detected
+              description: Generation latency exceeds 100ms threshold for 5 minutes
+
+          - alert: LowFrameRate
+            expr: frame_rate < 24
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: Frame rate below minimum threshold
+              description: Video frame rate below 24 FPS for 5 minutes
+
+          - alert: HighControlLatency
+            expr: control_response_ms > 50
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: High control response latency
+              description: Control response time exceeds 50ms threshold
+
+  rules/resources.yml: |
+    groups:
+      - name: resource_alerts
+        rules:
+          - alert: HighGPUUtilization
+            expr: gpu_utilization_percent > 90
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: High GPU utilization detected
+              description: GPU utilization exceeds 90% for 10 minutes
+
+          - alert: HighMemoryUsage
+            expr: memory_usage_percent > 90
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: High memory usage detected
+              description: Memory utilization exceeds 90% for 10 minutes
+
+          - alert: HighCacheEvictionRate
+            expr: cache_eviction_rate > 100
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: High cache eviction rate
+              description: Cache eviction rate exceeds 100 per 5 minutes
+
+          - alert: HighErrorRate
+            expr: error_rate_percent > 5
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: High error rate detected
+              description: Error rate exceeds 5% threshold for 5 minutes
+
+          - alert: HighConcurrentUsers
+            expr: concurrent_users > 100
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: High concurrent user count
+              description: Number of concurrent users exceeds 100 threshold
