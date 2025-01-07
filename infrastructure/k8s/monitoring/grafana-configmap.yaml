@@ -1,0 +1,181 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+  namespace: monitoring
+  labels:
+    app: gamegen-x
+    component: monitoring
+    service: grafana
+    environment: production
+data:
+  # Grafana Server Configuration
+  grafana.ini: |
+    [server]
+    protocol = https
+    http_port = 3000
+    domain = monitoring.gamegen-x.local
+    root_url = %(protocol)s://%(domain)s:%(http_port)s/
+    serve_from_sub_path = true
+
+    [security]
+    admin_user = admin
+    allow_embedding = true
+    cookie_secure = true
+    cookie_samesite = strict
+    disable_gravatar = true
+    strict_transport_security = true
+
+    [auth]
+    disable_login_form = false
+    disable_signout_menu = false
+    oauth_auto_login = false
+    signout_redirect_url = ""
+
+    [users]
+    allow_sign_up = false
+    auto_assign_org = true
+    auto_assign_org_role = Viewer
+    default_theme = dark
+
+    [metrics]
+    enabled = true
+    basic_auth_username = metrics
+    interval_seconds = 10
+
+    [unified_alerting]
+    enabled = true
+    execute_alerts = true
+    evaluation_timeout = 30s
+    max_attempts = 3
+
+  # Datasource Configuration
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        version: 1
+        editable: false
+        jsonData:
+          timeInterval: "10s"
+          queryTimeout: "30s"
+          httpMethod: "POST"
+          exemplarTraceIdDestinations:
+            - name: trace_id
+              datasourceUid: jaeger
+        secureJsonData:
+          httpHeaderValue1: "Bearer ${PROMETHEUS_TOKEN}"
+
+  # Dashboard Provisioning Configuration
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: GameGen-X
+        type: file
+        folder: GameGen-X
+        allowUiUpdates: false
+        updateIntervalSeconds: 60
+        options:
+          path: /var/lib/grafana/dashboards
+          foldersFromFilesStructure: true
+
+  # Performance Metrics Recording Rules
+  recording_rules.yaml: |
+    groups:
+      - name: performance_metrics
+        rules:
+          - record: generation_latency:percentile95
+            expr: histogram_quantile(0.95, sum(rate(generation_latency_milliseconds_bucket[5m])) by (le))
+            labels:
+              severity: warning
+              threshold_ms: "100"
+          - record: frame_rate:min
+            expr: min(frame_rate_per_second) by (instance)
+            labels:
+              severity: critical
+              threshold_fps: "24"
+          - record: control_response:max
+            expr: max(control_response_time_milliseconds) by (instance)
+            labels:
+              severity: warning
+              threshold_ms: "50"
+
+      - name: resource_metrics
+        rules:
+          - record: gpu:utilization:high
+            expr: avg(gpu_utilization_percentage) by (instance) > 90
+            labels:
+              severity: warning
+          - record: memory:usage:high
+            expr: avg(memory_usage_bytes/memory_total_bytes) by (instance) * 100 > 90
+            labels:
+              severity: warning
+          - record: cpu:usage:high
+            expr: avg(cpu_usage_percentage) by (instance) > 80
+            labels:
+              severity: warning
+
+      - name: cache_metrics
+        rules:
+          - record: cache:hit_rate:low
+            expr: (sum(rate(cache_hits_total[5m])) / (sum(rate(cache_hits_total[5m])) + sum(rate(cache_misses_total[5m])))) * 100 < 80
+            labels:
+              severity: warning
+          - record: cache:memory:high
+            expr: cache_memory_usage_bytes / cache_memory_total_bytes * 100 > 90
+            labels:
+              severity: warning
+
+  # Alert Rules Configuration
+  alert_rules.yaml: |
+    groups:
+      - name: performance_alerts
+        rules:
+          - alert: HighGenerationLatency
+            expr: generation_latency:percentile95 > 100
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: High generation latency detected
+              description: 95th percentile of generation latency is above 100ms threshold
+
+          - alert: LowFrameRate
+            expr: frame_rate:min < 24
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: Frame rate below minimum threshold
+              description: Frame rate has dropped below 24 FPS
+
+          - alert: HighControlLatency
+            expr: control_response:max > 50
+            for: 1m
+            labels:
+              severity: warning
+            annotations:
+              summary: High control response latency
+              description: Control response time exceeds 50ms threshold
+
+          - alert: ResourceExhaustion
+            expr: gpu:utilization:high or memory:usage:high or cpu:usage:high
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: Resource utilization critical
+              description: System resources are nearing exhaustion
+
+          - alert: LowCacheHitRate
+            expr: cache:hit_rate:low
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: Cache performance degraded
+              description: Cache hit rate has fallen below 80% threshold
