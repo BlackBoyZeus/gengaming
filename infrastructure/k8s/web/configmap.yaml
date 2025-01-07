@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gamegen-x-web-config
+  namespace: gamegen-x
+  labels:
+    app: gamegen-x
+    component: web
+    environment: production
+data:
+  # Backend API connection settings with secure HTTPS
+  VITE_API_BASE_URL: "https://gamegen-x-backend:8000"
+  VITE_WS_BASE_URL: "wss://gamegen-x-backend:8001"
+  VITE_API_VERSION: "v1"
+
+  # Request timeout configurations optimized for video generation
+  VITE_GENERATION_TIMEOUT: "100000"  # 100s for video generation
+  VITE_CONTROL_TIMEOUT: "5000"       # 5s for control responsiveness
+  VITE_STATUS_TIMEOUT: "3000"        # 3s for health checks
+
+  # Resilience and retry configurations
+  VITE_MAX_RETRIES: "3"             # Maximum API request retries
+  VITE_RETRY_DELAY: "1000"          # 1s initial retry delay with exponential backoff
+  
+  # WebSocket connection management
+  VITE_WS_RECONNECT_INTERVAL: "5000" # 5s reconnection interval
+  VITE_WS_MAX_RETRIES: "5"          # Maximum reconnection attempts
+  VITE_WS_PING_INTERVAL: "30000"    # 30s WebSocket health check interval
+
+  # Security configurations
+  VITE_SECURITY_HEADERS_ENABLED: "true"
+  VITE_RATE_LIMIT_REQUESTS: "100"    # Maximum 100 requests per window
+  VITE_RATE_LIMIT_WINDOW: "60000"    # 60s rate limiting window
+
+  # Monitoring and observability
+  VITE_ERROR_REPORTING_ENABLED: "true"
+  VITE_PERFORMANCE_MONITORING: "true"
