@@ -1,0 +1,161 @@
+/* GameGen-X Theme System
+ * Implements a high-contrast, game-focused design system with comprehensive
+ * light/dark mode support and gaming-specific variables
+ */
+
+:root {
+  /* Color System - Light Theme Base
+   * Using RGB values for opacity control
+   */
+  --primary-rgb: 0, 122, 255;
+  --secondary-rgb: 88, 86, 214;
+  --background-rgb: 242, 242, 247;
+  --text-rgb: 28, 28, 30;
+  --surface-rgb: 255, 255, 255;
+  --border-rgb: 209, 209, 214;
+  --hover-rgb: 229, 229, 234;
+  --active-rgb: 199, 199, 204;
+  --error-rgb: 255, 59, 48;
+  --success-rgb: 52, 199, 89;
+  --warning-rgb: 255, 149, 0;
+
+  /* Game State Colors */
+  --game-state-idle-rgb: 142, 142, 147;
+  --game-state-loading-rgb: 90, 200, 250;
+  --game-state-active-rgb: 50, 173, 230;
+  --game-state-error-rgb: 255, 59, 48;
+
+  /* Typography System */
+  --font-family-system: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-family-monospace: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  --font-family-gaming: 'Press Start 2P', var(--font-family-system);
+  
+  --font-size-base: 16px;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-loose: 1.75;
+
+  --letter-spacing-tight: -0.025em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.025em;
+
+  /* Spacing System - 8px Base Unit */
+  --spacing-unit: 8px;
+  --spacing-xxs: calc(var(--spacing-unit) * 0.25);
+  --spacing-xs: calc(var(--spacing-unit) * 0.5);
+  --spacing-sm: var(--spacing-unit);
+  --spacing-md: calc(var(--spacing-unit) * 2);
+  --spacing-lg: calc(var(--spacing-unit) * 3);
+  --spacing-xl: calc(var(--spacing-unit) * 4);
+  --spacing-2xl: calc(var(--spacing-unit) * 6);
+  --spacing-3xl: calc(var(--spacing-unit) * 8);
+
+  /* Gaming-Specific Variables */
+  --control-panel-height: calc(var(--spacing-unit) * 10);
+  --video-viewport-min-height: calc(var(--spacing-unit) * 30);
+  --game-button-size: calc(var(--spacing-unit) * 5);
+  --game-icon-size: calc(var(--spacing-unit) * 3);
+  --game-border-thickness: 2px;
+  --game-focus-ring-size: 4px;
+
+  /* Effects System */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  --shadow-glow: 0 0 15px rgb(var(--primary-rgb) / 0.5);
+
+  --transition-speed-fast: 150ms;
+  --transition-speed-normal: 300ms;
+  --transition-speed-slow: 500ms;
+  --transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --border-radius-sm: 0.25rem;
+  --border-radius-md: 0.5rem;
+  --border-radius-lg: 1rem;
+  --border-radius-full: 9999px;
+}
+
+/* Dark Theme Overrides */
+[data-theme='dark'] {
+  --primary-rgb: 10, 132, 255;
+  --secondary-rgb: 94, 92, 230;
+  --background-rgb: 28, 28, 30;
+  --text-rgb: 242, 242, 247;
+  --surface-rgb: 44, 44, 46;
+  --border-rgb: 58, 58, 60;
+  --hover-rgb: 64, 64, 66;
+  --active-rgb: 84, 84, 86;
+  
+  /* Adjust game states for dark mode visibility */
+  --game-state-idle-rgb: 152, 152, 157;
+  --game-state-loading-rgb: 100, 210, 255;
+  --game-state-active-rgb: 60, 183, 240;
+  
+  /* Adjust shadows for dark mode */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4);
+  --shadow-glow: 0 0 15px rgb(var(--primary-rgb) / 0.7);
+}
+
+/* High Contrast Mode */
+[data-high-contrast='true'] {
+  --primary-rgb: 0, 102, 255;
+  --secondary-rgb: 68, 66, 194;
+  --text-rgb: 0, 0, 0;
+  --background-rgb: 255, 255, 255;
+  --border-rgb: 0, 0, 0;
+  
+  /* Increase contrast for game states */
+  --game-state-idle-rgb: 82, 82, 87;
+  --game-state-loading-rgb: 0, 122, 255;
+  --game-state-active-rgb: 0, 84, 227;
+  --game-state-error-rgb: 215, 0, 21;
+  
+  /* Remove shadows for clearer boundaries */
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-glow: none;
+  
+  /* Increase border thickness */
+  --game-border-thickness: 3px;
+  --game-focus-ring-size: 5px;
+}
+
+/* System Dark Mode Preference */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary-rgb: 10, 132, 255;
+    --background-rgb: 28, 28, 30;
+    --text-rgb: 242, 242, 247;
+  }
+}
+
+/* Reduced Motion Preference */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-speed-fast: 0ms;
+    --transition-speed-normal: 0ms;
+    --transition-speed-slow: 0ms;
+  }
+}
+
+/* Mobile Breakpoint Adjustments */
+@media (max-width: 768px) {
+  :root {
+    --control-panel-height: calc(var(--spacing-unit) * 8);
+    --video-viewport-min-height: calc(var(--spacing-unit) * 20);
+    --game-button-size: calc(var(--spacing-unit) * 4);
+    --game-icon-size: calc(var(--spacing-unit) * 2.5);
+  }
+}
