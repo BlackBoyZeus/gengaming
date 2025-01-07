@@ -1,0 +1,70 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gamegen-x-backend-ingress
+  namespace: gamegen-x
+  labels:
+    app: gamegen-x
+    component: backend
+    environment: production
+  annotations:
+    # TLS Configuration
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-min-version: "TLSv1.3"
+    
+    # Timeout Settings for Long-Running Connections
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+    
+    # CORS Configuration
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    
+    # Security Headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+    
+    # Rate Limiting
+    nginx.ingress.kubernetes.io/limit-rps: "10"
+    
+    # Web Application Firewall
+    nginx.ingress.kubernetes.io/enable-modsecurity: "true"
+    nginx.ingress.kubernetes.io/enable-owasp-core-rules: "true"
+    nginx.ingress.kubernetes.io/modsecurity-snippet: |
+      SecRuleEngine On
+      SecRequestBodyAccess On
+      SecAuditEngine RelevantOnly
+    
+    # WebSocket Support
+    nginx.ingress.kubernetes.io/connection-proxy-header: "keep-alive"
+    nginx.ingress.kubernetes.io/websocket-services: "gamegen-x-backend"
+
+spec:
+  tls:
+    - hosts:
+        - api.gamegen-x.com
+      secretName: gamegen-x-tls
+  rules:
+    - host: api.gamegen-x.com
+      http:
+        paths:
+          # HTTP API Endpoints
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gamegen-x-backend
+                port:
+                  number: 8000
+          # WebSocket Endpoints
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: gamegen-x-backend
+                port:
+                  number: 8001
