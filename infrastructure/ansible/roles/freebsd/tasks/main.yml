@@ -1,0 +1,151 @@
+---
+# FreeBSD Role Tasks for GameGen-X
+# Version: 1.0
+# Ansible Version: 2.9+
+# Python Version: 3.9+
+
+- name: Import common tasks
+  ansible.builtin.import_tasks: ../common/tasks/main.yml
+  tags: ['common', 'setup']
+
+- name: Install FreeBSD System Dependencies
+  community.general.pkgng:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - python39
+    - py39-pip
+    - py39-numpy
+    - py39-pytorch
+    - cmake
+    - ninja
+    - gcc
+    - git
+    - htop
+    - tmux
+    - nvidia-gpu-driver
+    - nvidia-gpu-sdk
+    - nvidia-ml
+    - cuda-toolkit
+    - cuda-samples
+  tags: ['packages', 'setup']
+
+- name: Configure FreeBSD Kernel Parameters for High Performance
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_set: yes
+    reload: yes
+  loop:
+    # Memory management optimizations
+    - { name: 'kern.ipc.shm_use_phys', value: '1' }
+    - { name: 'kern.ipc.shmmax', value: '34359738368' }  # 32GB
+    - { name: 'kern.ipc.shmall', value: '8388608' }
+    # Network optimizations
+    - { name: 'kern.ipc.somaxconn', value: '4096' }
+    - { name: 'net.inet.tcp.msl', value: '2000' }
+    - { name: 'net.inet.tcp.sendspace', value: '262144' }
+    - { name: 'net.inet.tcp.recvspace', value: '262144' }
+    - { name: 'net.inet.tcp.delayed_ack', value: '0' }
+    # Process and file limits
+    - { name: 'kern.maxproc', value: '32768' }
+    - { name: 'kern.maxfiles', value: '65536' }
+    - { name: 'kern.maxfilesperproc', value: '32768' }
+    # GPU optimizations
+    - { name: 'hw.nvidia.gpu.memory.use_hierarchy', value: '1' }
+    - { name: 'hw.nvidia.gpu.power.default_limit', value: '300' }
+  tags: ['kernel', 'performance']
+
+- name: Configure Resource Limits
+  ansible.posix.pam_limits:
+    domain: '*'
+    limit_type: "{{ item.type }}"
+    limit_item: "{{ item.item }}"
+    value: "{{ item.value }}"
+  loop:
+    - { type: 'soft', item: 'nofile', value: '65536' }
+    - { type: 'hard', item: 'nofile', value: '65536' }
+    - { type: 'soft', item: 'nproc', value: '32768' }
+    - { type: 'hard', item: 'nproc', value: '32768' }
+    - { type: 'soft', item: 'memlock', value: 'unlimited' }
+    - { type: 'hard', item: 'memlock', value: 'unlimited' }
+    - { type: 'soft', item: 'stack', value: 'unlimited' }
+    - { type: 'hard', item: 'stack', value: 'unlimited' }
+  tags: ['system', 'limits']
+
+- name: Configure GPU Support
+  ansible.builtin.template:
+    src: templates/gpu.conf.j2
+    dest: /boot/loader.conf.d/gpu.conf
+    mode: '0644'
+    owner: root
+    group: wheel
+  notify: reload loader conf
+  tags: ['gpu', 'setup']
+
+- name: Configure System Performance
+  ansible.builtin.template:
+    src: templates/performance.conf.j2
+    dest: /etc/sysctl.d/99-performance.conf
+    mode: '0644'
+    owner: root
+    group: wheel
+  notify: reload sysctl
+  tags: ['system', 'performance']
+
+- name: Configure System Monitoring
+  ansible.builtin.template:
+    src: templates/node-exporter.yml.j2
+    dest: /usr/local/etc/prometheus/node-exporter.yml
+    mode: '0644'
+    owner: prometheus
+    group: prometheus
+  notify: restart monitoring services
+  tags: ['monitoring']
+
+- name: Configure RC System
+  ansible.builtin.lineinfile:
+    path: /etc/rc.conf
+    line: "{{ item }}"
+    state: present
+  loop:
+    - 'nvidia_load="YES"'
+    - 'nvidia_name="nvidia"'
+    - 'nvidia_modeset_load="YES"'
+    - 'kld_list="nvidia-modeset nvidia"'
+    - 'performance_cpu_freq="HIGH"'
+    - 'powerd_enable="YES"'
+    - 'powerd_flags="-a hiadaptive -b adaptive"'
+  notify: reload rc conf
+  tags: ['system', 'boot']
+
+- name: Configure Kernel Modules
+  ansible.builtin.lineinfile:
+    path: /boot/loader.conf
+    line: "{{ item }}"
+    state: present
+  loop:
+    - 'nvidia_load="YES"'
+    - 'nvidia_name="nvidia"'
+    - 'nvidia_modeset_load="YES"'
+    - 'hw.nvidia.gpu.memory.use_hierarchy="1"'
+    - 'kern.ipc.shm_allow_removed="1"'
+    - 'kern.racct.enable="1"'
+  notify: reload loader conf
+  tags: ['system', 'kernel']
+
+handlers:
+  - name: reload sysctl
+    ansible.builtin.command: sysctl -p /etc/sysctl.d/99-performance.conf
+    listen: reload sysctl
+
+  - name: reload loader conf
+    ansible.builtin.command: /sbin/kldxref /boot/kernel
+    listen: reload loader conf
+
+  - name: reload rc conf
+    ansible.builtin.service:
+      name: rc
+      state: reloaded
+    listen: reload rc conf
