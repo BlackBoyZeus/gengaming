@@ -1,0 +1,137 @@
+---
+# GPU Role Tasks for GameGen-X
+# Version: 1.0
+# Ansible Version: 2.9+
+# Python Version: 3.9+
+
+- name: Install GPU Driver Dependencies
+  ansible.builtin.pkg:
+    name:
+      - gpu-utils
+      - compute-libs
+      - driver-tools
+      - rdma-core
+      - infiniband-diags
+      - perftest
+      - numactl
+    state: present
+  tags: ['packages', 'setup']
+
+- name: Configure GPU Memory Settings
+  ansible.builtin.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_set: yes
+    reload: yes
+  loop:
+    - { name: 'hw.gpu.memory.size', value: '{{ gpu_memory_gb * 1024 * 1024 * 1024 }}' }
+    - { name: 'hw.gpu.memory.use_hierarchy', value: '1' }
+    - { name: 'hw.gpu.memory.numa_aware', value: '1' }
+    - { name: 'hw.gpu.compute.exclusive_mode', value: '1' }
+  tags: ['memory', 'performance']
+
+- name: Configure GPU Compute Units
+  ansible.builtin.template:
+    src: gpu_config.j2
+    dest: /etc/gpu/compute.conf
+    mode: '0644'
+    owner: root
+    group: wheel
+    validate: '/usr/local/sbin/gpu-config -t %s'
+  vars:
+    numa_topology: "{{ numa_config }}"
+    compute_mode: "exclusive_process"
+    memory_hierarchy:
+      l1_cache_size: "128KB"
+      l2_cache_size: "60MB"
+      shared_memory: "16GB"
+  notify: Restart GPU Services
+  tags: ['compute', 'setup']
+
+- name: Configure GPU Performance Settings
+  ansible.builtin.lineinfile:
+    path: /boot/loader.conf
+    line: "{{ item }}"
+    state: present
+  loop:
+    - 'hw.gpu.optimization="high_performance"'
+    - 'hw.gpu.frequency.max="{{ gpu_max_freq }}"'
+    - 'hw.gpu.power.profile="maximum_performance"'
+    - 'hw.gpu.thermal.target={{ gpu_thermal_target }}'
+    - 'hw.gpu.compute.persistence=1'
+  notify: Restart GPU Services
+  tags: ['performance', 'setup']
+
+- name: Configure High-Speed Network for GPU Cluster
+  ansible.builtin.template:
+    src: network_config.j2
+    dest: /etc/rc.conf.d/network
+    mode: '0644'
+    owner: root
+    group: wheel
+  vars:
+    infiniband_config:
+      enabled: true
+      mtu: 9000
+      rdma: true
+    network_buffers:
+      rx_size: "16MB"
+      tx_size: "16MB"
+  notify: Restart GPU Services
+  tags: ['network', 'setup']
+
+- name: Setup NUMA Topology
+  ansible.builtin.template:
+    src: numa_config.j2
+    dest: /etc/gpu/numa.conf
+    mode: '0644'
+    owner: root
+    group: wheel
+  vars:
+    numa_nodes: "{{ numa_config.nodes }}"
+    gpus_per_node: "{{ numa_config.gpus_per_node }}"
+    memory_policy: "{{ numa_config.memory_policy }}"
+  notify: Restart GPU Services
+  tags: ['numa', 'setup']
+
+- name: Configure GPU Monitoring
+  ansible.builtin.template:
+    src: gpu_monitor.j2
+    dest: /usr/local/etc/gpu_monitor.conf
+    mode: '0644'
+    owner: root
+    group: wheel
+  vars:
+    metrics_interval: 30
+    collect_performance: true
+    collect_memory: true
+    collect_thermal: true
+  tags: ['monitoring', 'setup']
+
+- name: Enable GPU Monitoring Service
+  ansible.builtin.service:
+    name: gpu_monitor
+    enabled: true
+    state: started
+  tags: ['monitoring', 'service']
+
+- name: Configure GPU Resource Limits
+  ansible.builtin.pam_limits:
+    domain: '*'
+    limit_type: "{{ item.type }}"
+    limit_item: "{{ item.item }}"
+    value: "{{ item.value }}"
+  loop:
+    - { type: 'soft', item: 'memlock', value: 'unlimited' }
+    - { type: 'hard', item: 'memlock', value: 'unlimited' }
+    - { type: 'soft', item: 'stack', value: 'unlimited' }
+    - { type: 'hard', item: 'stack', value: 'unlimited' }
+  tags: ['limits', 'setup']
+
+handlers:
+  - name: Restart GPU Services
+    ansible.builtin.service:
+      name: gpu_service
+      state: restarted
+    listen: "restart gpu services"
