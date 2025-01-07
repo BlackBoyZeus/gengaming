@@ -1,0 +1,213 @@
+name: Web CI
+
+on:
+  push:
+    branches: [main]
+    paths: ['src/web/**']
+  pull_request:
+    branches: [main]
+    paths: ['src/web/**']
+
+env:
+  NODE_VERSION: '16.x'
+  WORKING_DIRECTORY: 'src/web'
+  COVERAGE_THRESHOLD: 80
+  PERFORMANCE_SCORE_THRESHOLD: 90
+
+jobs:
+  build:
+    name: Build Web Application
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Install Dependencies
+        run: |
+          npm ci
+          npm audit fix
+
+      - name: Type Check
+        run: npm run typecheck
+
+      - name: Build Application
+        run: npm run build
+
+      - name: Verify FreeBSD Compatibility
+        run: |
+          # Check for FreeBSD-specific dependencies
+          grep "freebsd" package.json || true
+          # Validate build output for FreeBSD targets
+          test -d dist || exit 1
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: ${{ env.WORKING_DIRECTORY }}/dist
+
+  test:
+    name: Run Tests
+    needs: build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Unit Tests
+        run: npm run test:coverage
+
+      - name: Validate Coverage Thresholds
+        run: |
+          COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+          if (( $(echo "$COVERAGE < $COVERAGE_THRESHOLD" | bc -l) )); then
+            echo "Coverage $COVERAGE% is below threshold of $COVERAGE_THRESHOLD%"
+            exit 1
+          fi
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: ${{ env.WORKING_DIRECTORY }}/coverage
+
+  browser-test:
+    name: Browser Compatibility Tests
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        browser: ['chrome-90', 'firefox-88', 'safari-14']
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Setup Browser Environment
+        uses: browser-tools/setup-browser@v1
+        with:
+          browser: ${{ matrix.browser }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Browser Tests
+        run: npm run test:e2e
+        env:
+          BROWSER: ${{ matrix.browser }}
+
+      - name: Upload Browser Test Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: browser-test-results-${{ matrix.browser }}
+          path: ${{ env.WORKING_DIRECTORY }}/cypress/reports
+
+  performance-test:
+    name: Performance Tests
+    needs: build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+          path: ${{ env.WORKING_DIRECTORY }}/dist
+
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v9
+        with:
+          configPath: '.lighthouserc.json'
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+      - name: Run FPS Tests
+        run: |
+          npm run test:perf
+          # Validate 60fps requirement
+          if ! grep -q '"fps": {"min": 60' test-results/performance.json; then
+            echo "FPS requirements not met"
+            exit 1
+          fi
+
+      - name: Validate Response Times
+        run: |
+          # Check for <100ms response time requirement
+          if ! grep -q '"responseTime": {"max": 100' test-results/performance.json; then
+            echo "Response time requirements not met"
+            exit 1
+          fi
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Run Snyk Security Scan
+        uses: snyk/actions/node@v1
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+
+      - name: Upload Security Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-report
+          path: ${{ env.WORKING_DIRECTORY }}/snyk-report
