@@ -1,0 +1,141 @@
+[[package]]
+name = "fastapi"
+version = "0.95.0"
+description = "FastAPI framework, high performance, easy to learn, fast to code, ready for production"
+category = "main"
+optional = false
+python-versions = ">=3.9,<4.0"
+platform = "FreeBSD"
+files = [
+    {file = "fastapi-0.95.0.tar.gz", hash = "sha256:..."},
+    {file = "fastapi-0.95.0-py3-none-any.whl", hash = "sha256:..."}
+]
+
+[package.dependencies]
+uvicorn = ">=0.20.0"
+pydantic = ">=1.10.0"
+
+[package.extras]
+all = ["uvicorn[standard]", "python-multipart", "itsdangerous", "pyyaml", "requests"]
+
+[[package]]
+name = "pytorch"
+version = "2.0.0"
+description = "Tensors and Dynamic neural networks in Python with strong GPU acceleration"
+category = "main"
+optional = false
+python-versions = ">=3.9,<4.0"
+platform = "FreeBSD"
+files = [
+    {file = "pytorch-2.0.0.tar.gz", hash = "sha256:..."},
+    {file = "pytorch-2.0.0-cp39-cp39-freebsd_13_0_release_amd64.whl", hash = "sha256:..."}
+]
+
+[package.dependencies]
+numpy = ">=1.23.0"
+typing-extensions = ">=4.0.0"
+
+[package.extras]
+cuda = ["nvidia-cuda-runtime-cu11", "nvidia-cuda-nvrtc-cu11"]
+
+[[package]]
+name = "transformers"
+version = "4.0.0"
+description = "State-of-the-art Natural Language Processing for PyTorch and TensorFlow 2.0"
+category = "main"
+optional = false
+python-versions = ">=3.9,<4.0"
+platform = "FreeBSD"
+files = [
+    {file = "transformers-4.0.0.tar.gz", hash = "sha256:..."},
+    {file = "transformers-4.0.0-py3-none-any.whl", hash = "sha256:..."}
+]
+
+[package.dependencies]
+tokenizers = ">=0.12.0"
+tqdm = ">=4.64.0"
+
+[package.extras]
+torch = ["torch>=1.10.0"]
+
+[[package]]
+name = "einops"
+version = "0.6.0"
+description = "A new way to manipulate and optimize tensor operations"
+category = "main"
+optional = false
+python-versions = ">=3.9,<4.0"
+platform = "FreeBSD"
+files = [
+    {file = "einops-0.6.0.tar.gz", hash = "sha256:..."},
+    {file = "einops-0.6.0-py3-none-any.whl", hash = "sha256:..."}
+]
+
+[[package]]
+name = "pytest"
+version = "7.3.0"
+description = "pytest: simple powerful testing with Python"
+category = "dev"
+optional = false
+python-versions = ">=3.9,<4.0"
+platform = "FreeBSD"
+files = [
+    {file = "pytest-7.3.0.tar.gz", hash = "sha256:..."},
+    {file = "pytest-7.3.0-py3-none-any.whl", hash = "sha256:..."}
+]
+
+[package.dependencies]
+coverage = ">=7.0.0"
+pytest-cov = ">=4.0.0"
+
+[package.extras]
+coverage = ["coverage[toml]>=7.0.0", "pytest-cov>=4.0.0"]
+
+[[package]]
+name = "black"
+version = "23.3.0"
+description = "The uncompromising code formatter."
+category = "dev"
+optional = false
+python-versions = ">=3.9,<4.0"
+platform = "FreeBSD"
+files = [
+    {file = "black-23.3.0.tar.gz", hash = "sha256:..."},
+    {file = "black-23.3.0-py3-none-any.whl", hash = "sha256:..."}
+]
+
+[package.dependencies]
+click = ">=8.0.0"
+mypy-extensions = ">=1.0.0"
+
+[[package]]
+name = "isort"
+version = "5.12.0"
+description = "A Python utility / library to sort Python imports."
+category = "dev"
+optional = false
+python-versions = ">=3.9,<4.0"
+platform = "FreeBSD"
+files = [
+    {file = "isort-5.12.0.tar.gz", hash = "sha256:..."},
+    {file = "isort-5.12.0-py3-none-any.whl", hash = "sha256:..."}
+]
+
+[metadata]
+lock-version = "1.1"
+python-versions = "^3.9"
+content-hash = "sha256:..."
+platform = "FreeBSD-based Orbis OS"
+
+[metadata.files]
+fastapi = []
+pytorch = []
+transformers = []
+einops = []
+pytest = []
+black = []
+isort = []
+
+[metadata.markers]
+platform = "FreeBSD"
+implementation = "CPython"
