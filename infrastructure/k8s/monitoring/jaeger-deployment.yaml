@@ -1,0 +1,233 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: monitoring
+  labels:
+    app: gamegen-x
+    component: monitoring
+    service: jaeger
+    version: "1.45"
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "16686"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gamegen-x
+      component: monitoring
+      service: jaeger
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: gamegen-x
+        component: monitoring
+        service: jaeger
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        fsGroup: 1000
+      containers:
+      - name: jaeger
+        image: docker.io/jaegertracing/all-in-one:1.45  # version: 1.45
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        ports:
+        - containerPort: 16686
+          protocol: TCP
+          name: ui
+        - containerPort: 6831
+          protocol: UDP
+          name: jaeger-compact
+        - containerPort: 6832
+          protocol: UDP
+          name: jaeger-binary
+        - containerPort: 5778
+          protocol: TCP
+          name: config-rest
+        - containerPort: 14250
+          protocol: TCP
+          name: grpc
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
+        env:
+        - name: COLLECTOR_ZIPKIN_HOST_PORT
+          value: ":9411"
+        - name: MEMORY_MAX_TRACES
+          value: "50000"
+        - name: SAMPLING_STRATEGIES_FILE
+          value: "/etc/jaeger/sampling.json"
+        - name: SPAN_STORAGE_TYPE
+          value: "badger"
+        - name: BADGER_EPHEMERAL
+          value: "false"
+        - name: BADGER_DIRECTORY_VALUE
+          value: "/badger/data"
+        - name: BADGER_DIRECTORY_KEY
+          value: "/badger/key"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 16686
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 16686
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        volumeMounts:
+        - name: jaeger-storage
+          mountPath: /badger
+          readOnly: false
+        - name: jaeger-config
+          mountPath: /etc/jaeger
+          readOnly: true
+      volumes:
+      - name: jaeger-storage
+        persistentVolumeClaim:
+          claimName: jaeger-storage-claim
+      - name: jaeger-config
+        configMap:
+          name: jaeger-sampling-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jaeger-sampling-config
+  namespace: monitoring
+data:
+  sampling.json: |
+    {
+      "default_strategy": {
+        "type": "probabilistic",
+        "param": 1.0
+      },
+      "service_strategies": [
+        {
+          "service": "backend-api",
+          "type": "probabilistic",
+          "param": 1.0,
+          "operation_strategies": [
+            {
+              "operation": "generate_video",
+              "type": "probabilistic",
+              "param": 1.0
+            },
+            {
+              "operation": "control_video",
+              "type": "probabilistic",
+              "param": 1.0
+            },
+            {
+              "operation": "websocket_stream",
+              "type": "probabilistic",
+              "param": 1.0
+            }
+          ]
+        },
+        {
+          "service": "model-service",
+          "type": "probabilistic",
+          "param": 0.5,
+          "operation_strategies": [
+            {
+              "operation": "vae_encode",
+              "type": "probabilistic",
+              "param": 0.5
+            },
+            {
+              "operation": "msdit_generate",
+              "type": "probabilistic",
+              "param": 0.5
+            },
+            {
+              "operation": "instructnet_control",
+              "type": "probabilistic",
+              "param": 0.5
+            }
+          ]
+        },
+        {
+          "service": "cache-service",
+          "type": "probabilistic",
+          "param": 0.3,
+          "operation_strategies": [
+            {
+              "operation": "frame_cache",
+              "type": "probabilistic",
+              "param": 0.3
+            },
+            {
+              "operation": "model_cache",
+              "type": "probabilistic",
+              "param": 0.3
+            }
+          ]
+        }
+      ]
+    }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jaeger-storage-claim
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: freebsd-local
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+  namespace: monitoring
+  labels:
+    app: gamegen-x
+    component: monitoring
+    service: jaeger
+spec:
+  ports:
+  - port: 16686
+    targetPort: ui
+    protocol: TCP
+    name: ui
+  - port: 6831
+    targetPort: jaeger-compact
+    protocol: UDP
+    name: jaeger-compact
+  - port: 6832
+    targetPort: jaeger-binary
+    protocol: UDP
+    name: jaeger-binary
+  - port: 5778
+    targetPort: config-rest
+    protocol: TCP
+    name: config-rest
+  - port: 14250
+    targetPort: grpc
+    protocol: TCP
+    name: grpc
+  selector:
+    app: gamegen-x
+    component: monitoring
+    service: jaeger
