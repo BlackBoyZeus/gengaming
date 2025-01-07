@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gamegen-x-backend
+  namespace: gamegen-x
+  labels:
+    app: gamegen-x
+    component: backend
+    environment: production
+  annotations:
+    # Enable Prometheus metrics scraping
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
+
+spec:
+  # Use ClusterIP for internal service access
+  type: ClusterIP
+  
+  # Port configurations for HTTP API and WebSocket streaming
+  ports:
+    # Main HTTP port for FastAPI endpoints and metrics
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+    
+    # WebSocket port for real-time frame streaming
+    - name: websocket
+      port: 8001
+      targetPort: 8000
+      protocol: TCP
+  
+  # Pod selector matching deployment labels
+  selector:
+    app: gamegen-x
+    component: backend
+  
+  # Enable session affinity for stable WebSocket connections
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # 3 hour timeout for session stickiness
