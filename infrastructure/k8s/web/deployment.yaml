@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gamegen-x-web
+  namespace: gamegen-x
+  labels:
+    app: gamegen-x
+    component: web
+    environment: production
+spec:
+  # Configure horizontal scaling with 3 replicas for high availability
+  replicas: 3
+  selector:
+    matchLabels:
+      app: gamegen-x-web
+  # Configure rolling update strategy for zero-downtime deployments
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: gamegen-x-web
+    spec:
+      # Security context for enhanced container security
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+      containers:
+        - name: web
+          image: gamegen-x/web:latest
+          # Configure container ports
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          # Resource requests and limits for performance optimization
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          # Load environment configuration from ConfigMap
+          envFrom:
+            - configMapRef:
+                name: gamegen-x-web-config
+          # Liveness probe for container health monitoring
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          # Readiness probe for traffic routing
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
