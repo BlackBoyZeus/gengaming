@@ -1,0 +1,75 @@
+version: 2
+updates:
+  # Python dependencies configuration for backend ML framework stack
+  - package-ecosystem: "pip"
+    directory: "/src/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    allow:
+      - dependency-type: "all"
+    versioning-strategy: "auto"
+    labels:
+      - "dependencies"
+      - "python"
+      - "backend"
+      - "security-review-required"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(dev-deps)"
+      include: "scope"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "CODEOWNERS"
+    assignees:
+      - "CODEOWNERS"
+    ignore:
+      # Avoid major version updates for critical ML dependencies
+      - dependency-name: "torch*"
+        update-types: ["version-update:semver-major"]
+      # Avoid major version updates for API framework
+      - dependency-name: "fastapi"
+        update-types: ["version-update:semver-major"]
+    security-updates-only: false
+
+  # NPM dependencies configuration for frontend web interface
+  - package-ecosystem: "npm"
+    directory: "/src/web"
+    schedule:
+      interval: "weekly"
+      day: "monday" 
+      time: "09:00"
+      timezone: "UTC"
+    allow:
+      - dependency-type: "all"
+    versioning-strategy: "auto"
+    labels:
+      - "dependencies"
+      - "javascript"
+      - "frontend"
+      - "security-review-required"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(dev-deps)"
+      include: "scope"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "CODEOWNERS"
+    assignees:
+      - "CODEOWNERS"
+    groups:
+      # Group TypeScript type definition updates
+      - package-pattern: ["@types/*"]
+        group-name: "typescript-types"
+        update-types: ["minor", "patch"]
+      # Group ESLint related package updates
+      - package-pattern: ["eslint*"]
+        group-name: "eslint-packages"
+        update-types: ["minor", "patch"]
+      # Group testing library updates
+      - package-pattern: ["@testing-library/*"]
+        group-name: "testing-packages"
+        update-types: ["minor", "patch"]
+    security-updates-only: false
