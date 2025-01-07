@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" class="light-theme dark-theme-ready">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    
+    <!-- Primary Meta Tags -->
+    <meta name="description" content="GameGen-X - AI-powered game video generation and control system">
+    <meta name="application-name" content="GameGen-X">
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+    
+    <!-- Mobile/PWA Meta Tags -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="msapplication-TileColor" content="#000000">
+    <meta name="msapplication-tap-highlight" content="no">
+
+    <!-- Security Headers -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://api.gamegen-x.com; frame-ancestors 'none';">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()">
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
+
+    <!-- Resource Hints -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+    <link rel="preload" href="/src/assets/styles/global.css" as="style">
+
+    <!-- Icons -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- Critical CSS -->
+    <link rel="stylesheet" href="/src/assets/styles/global.css">
+
+    <title>GameGen-X - AI Game Video Generation</title>
+</head>
+<body class="light-theme dark-theme-ready" data-theme="light">
+    <!-- Skip Navigation -->
+    <a href="#root" class="skip-nav visually-hidden">Skip to main content</a>
+
+    <!-- React Mount Point -->
+    <div id="root" role="main" aria-label="GameGen-X Application"></div>
+
+    <!-- No JavaScript Fallback -->
+    <noscript>
+        <div style="text-align: center; padding: 2rem;">
+            <h1>JavaScript Required</h1>
+            <p>JavaScript is required to run GameGen-X. Please enable JavaScript in your browser settings.</p>
+        </div>
+    </noscript>
+
+    <!-- Application Entry Point -->
+    <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Performance Monitoring -->
+    <script type="module">
+        if (process.env.NODE_ENV === 'production') {
+            try {
+                const observer = new PerformanceObserver((list) => {
+                    for (const entry of list.getEntries()) {
+                        if (entry.duration > 100) {
+                            console.warn(`Long task detected: ${entry.name} (${entry.duration}ms)`);
+                        }
+                    }
+                });
+                observer.observe({ entryTypes: ['longtask', 'measure'] });
+            } catch (e) {
+                console.warn('Performance monitoring not supported');
+            }
+        }
+    </script>
+</body>
+</html>
