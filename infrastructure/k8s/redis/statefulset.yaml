@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: gamegen-x
+  labels:
+    app: redis
+    component: cache
+    system: gamegen-x
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+      system: gamegen-x
+  template:
+    metadata:
+      labels:
+        app: redis
+        system: gamegen-x
+    spec:
+      # Security context for FreeBSD compatibility and non-root operation
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+        runAsNonRoot: true
+      containers:
+      - name: redis
+        # Redis 7.0-alpine for minimal footprint and FreeBSD compatibility
+        image: redis:7.0-alpine
+        command:
+        - redis-server
+        - /usr/local/etc/redis/redis.conf
+        ports:
+        - containerPort: 6379
+          name: redis
+        # Resource limits as per Technical Specifications section 8.3.2
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "2Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+        volumeMounts:
+        - name: redis-config
+          mountPath: /usr/local/etc/redis
+          readOnly: true
+        - name: redis-data
+          mountPath: /data
+        # Health checks for high availability
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+      volumes:
+      - name: redis-config
+        configMap:
+          name: redis-config
+  # Persistent storage for frame caching with 24-hour retention
+  volumeClaimTemplates:
+  - metadata:
+      name: redis-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          # Allocate sufficient storage for frame caching
+          storage: 50Gi
+      # Use fast storage class for sub-millisecond latency
+      storageClassName: fast-storage
