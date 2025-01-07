@@ -1,0 +1,83 @@
+---
+# GameGen-X Infrastructure Inventory
+# Version: 1.0
+# Ansible Version: 2.9+
+# Python Interpreter: /usr/local/bin/python3.9
+
+# Global variables applicable to all hosts
+all:
+  vars:
+    ansible_python_interpreter: /usr/local/bin/python3.9
+    ansible_connection: ssh
+
+# API Server Group - FastAPI application servers
+api_servers:
+  vars:
+    min_cpu_cores: 8
+    min_memory_gb: 32
+    storage_size_gb: 500
+    ansible_user: gamegen
+    ansible_become: true
+
+# Model Server Group - Model inference servers
+model_servers:
+  vars:
+    min_cpu_cores: 16
+    min_memory_gb: 64
+    storage_size_gb: 1000
+    ansible_user: gamegen
+    ansible_become: true
+
+# GPU Node Group - High-performance GPU compute nodes
+gpu_nodes:
+  vars:
+    min_cpu_cores: 32
+    min_memory_gb: 512
+    gpu_count: 24
+    gpu_memory_gb: 80
+    storage_size_gb: 2000
+    network_bandwidth_gbps: 100
+    ansible_user: gamegen
+    ansible_become: true
+
+# Storage Node Group - High-capacity storage nodes
+storage_nodes:
+  vars:
+    min_cpu_cores: 16
+    min_memory_gb: 64
+    storage_size_tb: 50
+    network_bandwidth_gbps: 100
+    ansible_user: gamegen
+    ansible_become: true
+
+# Parent Groups
+compute:
+  children:
+    model_servers:
+    gpu_nodes:
+  vars:
+    monitoring_enabled: true
+    metrics_collection_interval: 30
+    log_level: info
+
+infrastructure:
+  children:
+    api_servers:
+    storage_nodes:
+  vars:
+    monitoring_enabled: true
+    metrics_collection_interval: 60
+    log_level: info
+
+# Host definitions - To be populated with actual hostnames/IPs
+api_servers:
+  hosts:
+
+model_servers:
+  hosts:
+
+gpu_nodes:
+  hosts:
+
+storage_nodes:
+  hosts:
