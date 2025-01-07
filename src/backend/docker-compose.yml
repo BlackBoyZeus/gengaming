@@ -1,0 +1,111 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        FREEBSD_VERSION: '13.2'
+        PYTHON_VERSION: '3.9'
+    platform: freebsd/amd64
+    environment:
+      - ENVIRONMENT=development
+      - GPU_ENABLED=true
+      - MODEL_PATH=/app/weights
+      - REDIS_URL=redis://cache:6379/0
+      - LOG_LEVEL=INFO
+      - MAX_WORKERS=4
+    volumes:
+      - type: bind
+        source: ./models
+        target: /app/models
+        read_only: true
+      - type: bind
+        source: ./weights
+        target: /app/weights
+        read_only: true
+    ports:
+      - "8000:8000"
+    depends_on:
+      - cache
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    networks:
+      - backend
+
+  cache:
+    image: redis:7.0-alpine
+    command: redis-server /usr/local/etc/redis/redis.conf
+    platform: freebsd/amd64
+    volumes:
+      - type: bind
+        source: ../../infrastructure/docker/redis.conf
+        target: /usr/local/etc/redis/redis.conf
+        read_only: true
+      - type: volume
+        source: redis-data
+        target: /data
+    ports:
+      - "6379:6379"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+    sysctls:
+      net.core.somaxconn: 1024
+      vm.overcommit_memory: 1
+    networks:
+      - backend
+
+volumes:
+  redis-data:
+    driver: local
+
+networks:
+  backend:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: gamegen_net
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.bridge.enable_ip_masquerade: "true"
