@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: gamegen-x
+  labels:
+    app: redis
+    component: cache
+    environment: production
+data:
+  redis.conf: |
+    # Network settings
+    bind 0.0.0.0
+    port 6379
+    protected-mode no
+    tcp-keepalive 300
+    tcp-backlog 511
+    timeout 0
+
+    # Memory management
+    maxmemory 4gb
+    maxmemory-policy allkeys-lru
+    maxmemory-samples 10
+    activerehashing yes
+
+    # Persistence settings - disabled for caching
+    save ""
+    appendonly no
+
+    # FreeBSD optimizations
+    io-threads 4
+    io-threads-do-reads yes
+    hz 100
+    dynamic-hz yes
+
+    # Performance monitoring
+    latency-monitor-threshold 100
+    databases 16
+
+    # Logging configuration
+    loglevel notice
+    logfile "/var/log/redis/redis.log"
+    syslog-enabled yes
+    syslog-ident redis
+    syslog-facility local0
+
+    # Replication settings
+    replica-serve-stale-data yes
+    replica-read-only yes
+    repl-diskless-sync yes
+    repl-diskless-sync-delay 5
