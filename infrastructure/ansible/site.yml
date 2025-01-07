@@ -1,0 +1,161 @@
+---
+# GameGen-X Infrastructure Deployment Playbook
+# Version: 1.0
+# Ansible Version: 2.9+
+# Python Version: 3.9+
+
+- name: Configure API Servers
+  hosts: api_servers
+  become: true
+  roles:
+    - common
+    - freebsd
+    - security
+  vars:
+    min_cpu_cores: 8
+    min_memory_gb: 32
+    storage_size_gb: 500
+    network_bandwidth_gbps: 10
+    monitoring_enabled: true
+    backup_enabled: true
+    security_level: high
+  pre_tasks:
+    - name: Validate system requirements
+      ansible.builtin.assert:
+        that:
+          - ansible_processor_cores >= min_cpu_cores
+          - ansible_memtotal_mb >= (min_memory_gb * 1024)
+        msg: "System does not meet minimum requirements"
+      tags: ['validation']
+  tags: ['api', 'setup', 'security']
+
+- name: Configure Model Servers
+  hosts: model_servers
+  become: true
+  roles:
+    - common
+    - freebsd
+    - gpu
+    - security
+  vars:
+    min_cpu_cores: 16
+    min_memory_gb: 64
+    storage_size_gb: 1000
+    gpu_count: 24
+    gpu_memory_gb: 80
+    gpu_type: "H800"
+    gpu_driver_version: "latest"
+    gpu_optimization_level: "maximum"
+    network_bandwidth_gbps: 100
+    infiniband_enabled: true
+    monitoring_enabled: true
+    security_level: high
+  pre_tasks:
+    - name: Validate GPU configuration
+      ansible.builtin.assert:
+        that:
+          - ansible_processor_cores >= min_cpu_cores
+          - ansible_memtotal_mb >= (min_memory_gb * 1024)
+          - gpu_count is defined
+          - gpu_memory_gb is defined
+        msg: "GPU configuration validation failed"
+      tags: ['validation']
+  tags: ['model', 'setup', 'gpu', 'security']
+
+- name: Configure GPU Nodes
+  hosts: gpu_nodes
+  become: true
+  roles:
+    - common
+    - freebsd
+    - gpu
+    - security
+  vars:
+    min_cpu_cores: 32
+    min_memory_gb: 512
+    storage_size_gb: 2000
+    gpu_count: 24
+    gpu_memory_gb: 80
+    gpu_type: "H800"
+    gpu_driver_version: "latest"
+    gpu_optimization_level: "maximum"
+    network_bandwidth_gbps: 100
+    infiniband_enabled: true
+    rdma_enabled: true
+    numa_optimization: true
+    monitoring_enabled: true
+    security_level: high
+  pre_tasks:
+    - name: Validate GPU node requirements
+      ansible.builtin.assert:
+        that:
+          - ansible_processor_cores >= min_cpu_cores
+          - ansible_memtotal_mb >= (min_memory_gb * 1024)
+          - gpu_count == 24
+          - gpu_memory_gb == 80
+        msg: "GPU node validation failed"
+      tags: ['validation']
+    - name: Check network bandwidth
+      ansible.posix.sysctl:
+        name: net.core.rmem_max
+        value: "{{ 9437184 }}"
+        state: present
+      tags: ['network']
+  tags: ['gpu', 'setup', 'security']
+
+- name: Configure Storage Nodes
+  hosts: storage_nodes
+  become: true
+  roles:
+    - common
+    - freebsd
+    - security
+  vars:
+    min_cpu_cores: 16
+    min_memory_gb: 64
+    storage_size_tb: 50
+    storage_type: "NVMe"
+    raid_level: 10
+    network_bandwidth_gbps: 100
+    backup_enabled: true
+    backup_retention_days: 30
+    monitoring_enabled: true
+    security_level: high
+  pre_tasks:
+    - name: Validate storage requirements
+      ansible.builtin.assert:
+        that:
+          - ansible_processor_cores >= min_cpu_cores
+          - ansible_memtotal_mb >= (min_memory_gb * 1024)
+          - ansible_devices | length >= 2
+        msg: "Storage node validation failed"
+      tags: ['validation']
+    - name: Configure storage monitoring
+      ansible.monitoring.prometheus_alert:
+        name: storage_usage
+        expr: "node_filesystem_free_bytes / node_filesystem_size_bytes * 100 < 20"
+        for: "10m"
+        severity: warning
+      tags: ['monitoring']
+  tags: ['storage', 'setup', 'security']
+
+# Global handlers for all playbooks
+handlers:
+  - name: restart monitoring
+    ansible.builtin.service:
+      name: prometheus-node-exporter
+      state: restarted
+    listen: "restart monitoring services"
+
+  - name: reload system configuration
+    ansible.posix.sysctl:
+      state: present
+      reload: yes
+    listen: "reload sysctl"
+
+# Global variables
+vars:
+  ansible_python_interpreter: /usr/local/bin/python3.9
+  ansible_connection: ssh
+  ansible_become_method: sudo
+  ansible_ssh_pipelining: true
