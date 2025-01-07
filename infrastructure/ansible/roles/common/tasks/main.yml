@@ -1,0 +1,169 @@
+---
+# Common role tasks for GameGen-X infrastructure
+# Version: 1.0
+# Ansible Version: 2.9+
+# Python Version: 3.9+
+
+- name: Install Required System Packages
+  pkg:
+    name:
+      - python39
+      - py39-pip
+      - git
+      - cmake
+      - ninja
+      - htop
+      - tmux
+      - vim
+      - curl
+      - wget
+      - prometheus-node-exporter
+      - rsyslog
+      - bash
+      - sudo
+      - ca_root_nss
+      - openssl
+      - pkg
+    state: present
+  tags: ['packages', 'setup']
+  become: true
+
+- name: Configure System Time
+  timezone:
+    name: UTC
+  tags: ['system', 'time']
+
+- name: Create Prometheus Node Exporter User
+  user:
+    name: prometheus
+    system: yes
+    shell: /usr/sbin/nologin
+    home: /nonexistent
+  tags: ['monitoring', 'setup']
+
+- name: Configure Prometheus Node Exporter
+  template:
+    src: prometheus-node-exporter.yml.j2
+    dest: /usr/local/etc/prometheus-node-exporter.yml
+    mode: '0644'
+    owner: prometheus
+    group: prometheus
+  notify: restart monitoring services
+  tags: ['monitoring', 'metrics']
+
+- name: Enable and Start Prometheus Node Exporter
+  service:
+    name: prometheus_node_exporter
+    enabled: yes
+    state: started
+  tags: ['monitoring', 'setup']
+
+- name: Configure Security Limits
+  pam_limits:
+    domain: '*'
+    limit_type: "{{ item.limit_type }}"
+    limit_item: "{{ item.limit_item }}"
+    value: "{{ item.value }}"
+  loop:
+    - { limit_type: 'soft', limit_item: 'nofile', value: '65536' }
+    - { limit_type: 'hard', limit_item: 'nofile', value: '65536' }
+    - { limit_type: 'soft', limit_item: 'nproc', value: '32768' }
+    - { limit_type: 'hard', limit_item: 'nproc', value: '32768' }
+    - { limit_type: 'soft', limit_item: 'memlock', value: 'unlimited' }
+    - { limit_type: 'hard', limit_item: 'memlock', value: 'unlimited' }
+  tags: ['security', 'limits']
+
+- name: Configure System Logging
+  template:
+    src: rsyslog.conf.j2
+    dest: /etc/rsyslog.conf
+    mode: '0644'
+    owner: root
+    group: wheel
+  notify: restart rsyslog
+  tags: ['logging', 'setup']
+
+- name: Configure SSH Security
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    line: "{{ item }}"
+    state: present
+    validate: '/usr/sbin/sshd -t -f %s'
+  loop:
+    - 'PermitRootLogin no'
+    - 'PasswordAuthentication no'
+    - 'X11Forwarding no'
+    - 'MaxAuthTries 3'
+    - 'Protocol 2'
+    - 'AllowAgentForwarding no'
+    - 'AllowTcpForwarding no'
+    - 'ClientAliveInterval 300'
+    - 'ClientAliveCountMax 2'
+    - 'UsePAM yes'
+    - 'StrictModes yes'
+    - 'IgnoreRhosts yes'
+  notify: restart sshd
+  tags: ['security', 'ssh']
+
+- name: Configure System Performance
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_set: true
+    reload: true
+  loop:
+    - { name: 'kern.ipc.somaxconn', value: '4096' }
+    - { name: 'kern.ipc.maxsockbuf', value: '16777216' }
+    - { name: 'net.inet.tcp.msl', value: '2000' }
+    - { name: 'kern.maxproc', value: '32768' }
+    - { name: 'kern.maxfiles', value: '65536' }
+    - { name: 'hw.nvidia.gpu.memory.use_hierarchy', value: '1' }
+    - { name: 'kern.ipc.shm_max', value: '68719476736' }
+    - { name: 'kern.ipc.shm_use_phys', value: '1' }
+  tags: ['system', 'performance']
+
+- name: Create Required Directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: wheel
+  loop:
+    - /var/log/gamegen
+    - /var/run/gamegen
+    - /etc/gamegen
+  tags: ['setup', 'directories']
+
+- name: Configure Periodic Tasks
+  lineinfile:
+    path: /etc/periodic.conf
+    line: "{{ item }}"
+    state: present
+    create: yes
+  loop:
+    - 'daily_output="/var/log/gamegen/periodic.log"'
+    - 'daily_status_security_enable="YES"'
+    - 'daily_status_security_output="/var/log/gamegen/security.log"'
+    - 'daily_clean_tmps_enable="YES"'
+    - 'daily_clean_tmps_days="3"'
+  tags: ['system', 'maintenance']
+
+- name: Configure Core Dumps
+  sysctl:
+    name: kern.coredump
+    value: '0'
+    state: present
+  tags: ['security', 'system']
+
+handlers:
+  - name: restart rsyslog
+    service:
+      name: rsyslog
+      state: restarted
+
+  - name: restart sshd
+    service:
+      name: sshd
+      state: restarted
