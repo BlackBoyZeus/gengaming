@@ -1,0 +1,128 @@
+version: '3.8'
+
+services:
+  # FastAPI Backend Service
+  api:
+    image: gamegen-x-api:latest
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    resources:
+      limits:
+        cpus: '4'
+        memory: '8G'
+    volumes:
+      - model-weights:/app/models
+      - ./weights:/app/weights:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - REDIS_URL=redis://redis:6379/0
+      - MODEL_PATH=/app/models
+      - WEIGHTS_PATH=/app/weights
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - gamegen-x-network
+    depends_on:
+      - redis
+
+  # Redis Cache Service
+  redis:
+    image: redis:7.0-alpine
+    restart: unless-stopped
+    resources:
+      limits:
+        cpus: '2'
+        memory: '4G'
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - redis-data:/data
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - gamegen-x-network
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:1.24-alpine
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./static:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - gamegen-x-network
+    depends_on:
+      - api
+
+  # Prometheus Metrics Collection
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    networks:
+      - gamegen-x-network
+
+  # Grafana Metrics Visualization
+  grafana:
+    image: grafana/grafana:9.5.0
+    restart: unless-stopped
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3000:3000"
+    networks:
+      - gamegen-x-network
+    depends_on:
+      - prometheus
+
+networks:
+  gamegen-x-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  model-weights:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${PWD}/models
+      o: bind
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
