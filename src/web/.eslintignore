@@ -1,0 +1,19 @@
+node_modules/*
+
+# Build outputs
+dist/*
+build/*
+
+# Test coverage
+coverage/*
+
+# Configuration files
+*.config.js
+*.config.ts
+vite-env.d.ts
+.eslintrc.json
+
+# Assets
+*.svg
+*.css
+*.html
