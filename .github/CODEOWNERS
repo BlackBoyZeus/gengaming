@@ -1,0 +1,30 @@
+* @gamegen-x/core-team @gamegen-x/security-team
+
+# ML Model Implementations
+src/backend/models/vae/* @gamegen-x/ml-team @gamegen-x/model-reviewers
+src/backend/models/msdit/* @gamegen-x/ml-team @gamegen-x/model-reviewers
+src/backend/models/instructnet/* @gamegen-x/ml-team @gamegen-x/model-reviewers
+
+# Backend Services and API
+src/backend/api/* @gamegen-x/backend-team @gamegen-x/security-team
+src/backend/core/* @gamegen-x/core-team @gamegen-x/security-team
+src/backend/db/* @gamegen-x/backend-team @gamegen-x/security-team
+src/backend/services/* @gamegen-x/backend-team @gamegen-x/security-team
+
+# Authentication and Security
+src/backend/auth/* @gamegen-x/security-team @gamegen-x/backend-team
+
+# Platform-specific Utilities
+src/backend/utils/freebsd.py @gamegen-x/platform-team @gamegen-x/security-team
+src/backend/utils/gpu.py @gamegen-x/platform-team @gamegen-x/performance-team
+
+# Frontend Web Application
+src/web/* @gamegen-x/frontend-team @gamegen-x/security-team
+
+# Infrastructure and DevOps
+infrastructure/* @gamegen-x/devops-team @gamegen-x/security-team
+.github/workflows/* @gamegen-x/devops-team @gamegen-x/security-team
+
+# Security Tests and Documentation
+tests/security/* @gamegen-x/security-team
+docs/security/* @gamegen-x/security-team @gamegen-x/docs-team
