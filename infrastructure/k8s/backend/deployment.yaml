@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gamegen-x-backend
+  namespace: gamegen-x
+  labels:
+    app: gamegen-x
+    component: backend
+    environment: production
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: gamegen-x
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: gamegen-x
+        component: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: gamegen-backend-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: backend
+        image: gamegen-x/backend:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        resources:
+          requests:
+            cpu: "2"
+            memory: 4Gi
+            gpu.intel.com/gpu: "1"
+          limits:
+            cpu: "4"
+            memory: 8Gi
+            gpu.intel.com/gpu: "1"
+        envFrom:
+        - configMapRef:
+            name: gamegen-backend-config
+        volumeMounts:
+        - name: models
+          mountPath: /opt/gamegen/models
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 2
+      volumes:
+      - name: models
+        persistentVolumeClaim:
+          claimName: gamegen-models-pvc
+      nodeSelector:
+        gpu-type: intel
+        os: freebsd
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: gamegen-x
+                  component: backend
+              topologyKey: kubernetes.io/hostname
